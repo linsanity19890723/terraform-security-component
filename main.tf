@@ -7,7 +7,7 @@ resource "random_id" "s3_id" {
 
 #Create cloudtrail 
 resource "aws_cloudtrail" "foobar" {
-  name                          = var.aws_cloudtrail_s3
+  name                          = "${var.client_name}-cloudtrail"
   s3_bucket_name                = aws_s3_bucket.cloudtrail_s3.id
   s3_key_prefix                 = "prefix"
   include_global_service_events = false
@@ -15,7 +15,7 @@ resource "aws_cloudtrail" "foobar" {
 
 #Create cloudtrail s3 bucket
 resource "aws_s3_bucket" "cloudtrail_s3" {
-  bucket        = var.aws_cloudtrail_s3
+  bucket        = "${var.client_name}-cloudtraillogs-${var.region}"
   force_destroy = true
 
   policy = <<POLICY
@@ -29,7 +29,7 @@ resource "aws_s3_bucket" "cloudtrail_s3" {
               "Service": "cloudtrail.amazonaws.com"
             },
             "Action": "s3:GetBucketAcl",
-            "Resource": "arn:aws:s3:::${var.aws_cloudtrail_s3}"
+            "Resource": "arn:aws:s3:::${var.client_name}-cloudtraillogs-${var.region}"
         },
         {
             "Sid": "AWSCloudTrailWrite",
@@ -38,7 +38,7 @@ resource "aws_s3_bucket" "cloudtrail_s3" {
               "Service": "cloudtrail.amazonaws.com"
             },
             "Action": "s3:PutObject",
-            "Resource": "arn:aws:s3:::${var.aws_cloudtrail_s3}/prefix/AWSLogs/${data.aws_caller_identity.current.account_id}/*",
+            "Resource": "arn:aws:s3:::${var.client_name}-cloudtraillogs-${var.region}/prefix/AWSLogs/${data.aws_caller_identity.current.account_id}/*",
             "Condition": {
                 "StringEquals": {
                     "s3:x-amz-acl": "bucket-owner-full-control"
@@ -59,7 +59,7 @@ resource "aws_config_delivery_channel" "foo" {
 
 #Create config s3 bucket
 resource "aws_s3_bucket" "b" {
-  bucket        = var.aws_config_s3
+  bucket        = "${var.client_name}-configlogs-${var.region}"
   force_destroy = true
 }
 

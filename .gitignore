@@ -1,3 +1,4 @@
 # 忽略 tfstate 檔案
 terraform.tfstate
 terraform.tfstate.backup
+.terraform/*

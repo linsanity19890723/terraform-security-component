@@ -257,7 +257,7 @@ data "aws_sns_topic" "mail" {
 
 
 
-#Enable SecurityHub2
+#Enable SecurityHub
 
 
 

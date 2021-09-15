@@ -1,5 +1,5 @@
 data "aws_caller_identity" "current" {}
-
+data "aws_region" "current" {}
 
 resource "random_id" "s3_id" {
   byte_length = 2
@@ -110,3 +110,157 @@ resource "aws_iam_role_policy" "p" {
 }
 POLICY
 }
+
+#Enable Guardduty
+resource "aws_guardduty_detector" "MyDetector" {
+  enable = true
+
+  datasources {
+    s3_logs {
+      enable = true
+    }
+  }
+}
+
+#Create aws_guardduty_publishing_destination
+
+data "aws_iam_policy_document" "bucket_pol" {
+  statement {
+    sid = "Allow PutObject"
+    actions = [
+      "s3:PutObject"
+    ]
+
+    resources = [
+      "${aws_s3_bucket.gd_bucket.arn}/*"
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["guardduty.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid = "Allow GetBucketLocation"
+    actions = [
+      "s3:GetBucketLocation"
+    ]
+
+    resources = [
+      aws_s3_bucket.gd_bucket.arn
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["guardduty.amazonaws.com"]
+    }
+  }
+}
+
+data "aws_iam_policy_document" "kms_pol" {
+
+  statement {
+    sid = "Allow GuardDuty to encrypt findings"
+    actions = [
+      "kms:GenerateDataKey"
+    ]
+
+    resources = [
+      "arn:aws:kms:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:key/*"
+    ]
+
+    principals {
+      type        = "Service"
+      identifiers = ["guardduty.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid = "Allow all users to modify/delete key (test only)"
+    actions = [
+      "kms:*"
+    ]
+
+    resources = [
+      "arn:aws:kms:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:key/*"
+    ]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+  }
+
+}
+
+
+resource "aws_s3_bucket" "gd_bucket" {
+  bucket        = "${var.client_name}-gdlogs-${var.region}"
+  acl           = "private"
+  force_destroy = true
+}
+
+resource "aws_s3_bucket_policy" "gd_bucket_policy" {
+  bucket = aws_s3_bucket.gd_bucket.id
+  policy = data.aws_iam_policy_document.bucket_pol.json
+}
+
+resource "aws_kms_key" "gd_key" {
+  description             = "Temporary key for AccTest of TF"
+  deletion_window_in_days = 7
+  policy                  = data.aws_iam_policy_document.kms_pol.json
+}
+
+resource "aws_guardduty_publishing_destination" "test" {
+  detector_id     = aws_guardduty_detector.MyDetector.id
+  destination_arn = aws_s3_bucket.gd_bucket.arn
+  kms_key_arn     = aws_kms_key.gd_key.arn
+
+  depends_on = [
+    aws_s3_bucket_policy.gd_bucket_policy,
+  ]
+}
+
+#Create Guardduty Cloudwatch event rule
+resource "aws_cloudwatch_event_rule" "guardduty" {
+  name = "guardduty"
+  event_pattern = jsonencode({
+    source      = ["aws.guardduty"]
+    detail-type = ["GuardDuty Finding"]
+  })
+}
+
+#Create Guardduty Cloudwatch event target
+resource "aws_cloudwatch_event_target" "guardduty" {
+  target_id = "guardduty"
+  rule      = aws_cloudwatch_event_rule.guardduty.name
+  arn       = data.aws_sns_topic.mail.arn
+
+  input_transformer {
+    input_paths = {
+      "type"        = "$.detail.type"
+      "description" = "$.detail.description"
+      "severity"    = "$.detail.severity"
+    }
+
+    input_template = <<EOF
+"You have a severity <severity> GuardDuty finding type <type>"
+"<description>"
+EOF
+  }
+}
+
+data "aws_sns_topic" "mail" {
+  name = "alert-mail"
+}
+
+
+
+#Enable SecurityHub
+
+
+
+
+
+#Enable Inspector

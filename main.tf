@@ -235,7 +235,7 @@ resource "aws_cloudwatch_event_rule" "guardduty" {
 resource "aws_cloudwatch_event_target" "guardduty" {
   target_id = "guardduty"
   rule      = aws_cloudwatch_event_rule.guardduty.name
-  arn       = data.aws_sns_topic.mail.arn
+  arn       = aws_sns_topic.user_updates.arn
 
   input_transformer {
     input_paths = {
@@ -251,10 +251,12 @@ EOF
   }
 }
 
-data "aws_sns_topic" "mail" {
-  name = "alert-mail"
+# data "aws_sns_topic" "mail" {
+#   name = "alert-mail"
+# }
+resource "aws_sns_topic" "user_updates" {
+  name = var.sns_topic_name
 }
-
 
 
 #Enable SecurityHub

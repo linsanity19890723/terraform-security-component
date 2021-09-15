@@ -251,16 +251,71 @@ EOF
   }
 }
 
-# data "aws_sns_topic" "mail" {
-#   name = "alert-mail"
-# }
+
 resource "aws_sns_topic" "user_updates" {
   name = var.sns_topic_name
 }
 
+#Create SNS policy
+resource "aws_sns_topic" "test" {
+  name = "my-topic-with-policy"
+}
+
+resource "aws_sns_topic_policy" "default" {
+  arn = aws_sns_topic.test.arn
+
+  policy = data.aws_iam_policy_document.sns_topic_policy.json
+}
+
+data "aws_iam_policy_document" "sns_topic_policy" {
+  policy_id = "__default_policy_ID"
+
+  statement {
+    actions = [
+      "SNS:Subscribe",
+      "SNS:SetTopicAttributes",
+      "SNS:RemovePermission",
+      "SNS:Receive",
+      "SNS:Publish",
+      "SNS:ListSubscriptionsByTopic",
+      "SNS:GetTopicAttributes",
+      "SNS:DeleteTopic",
+      "SNS:AddPermission",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "AWS:SourceOwner"
+
+      values = [
+        "${data.aws_caller_identity.current.account_id}",
+      ]
+    }
+
+    effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+
+    resources = [
+      aws_sns_topic.user_updates.arn,
+    ]
+
+    sid = "__default_statement_ID"
+  }
+}
+
+#Create email suscription 
+resource "aws_sns_topic_subscription" "user_updates_sqs_target" {
+  topic_arn  = "arn:aws:sns:${var.region}:${data.aws_caller_identity.current.account_id}:${var.sns_topic_name}"
+  protocol   = "email"
+  endpoint   = var.sns_endpoint
+  depends_on = [aws_sns_topic.user_updates]
+}
 
 #Enable SecurityHub
-
 
 
 

@@ -320,4 +320,4 @@ resource "aws_sns_topic_subscription" "user_updates_sqs_target" {
 
 
 
-#Enable Inspector
+#Enable Inspector test
